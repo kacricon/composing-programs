@@ -4,8 +4,9 @@ from data import word_sentiments, load_tweets
 from datetime import datetime
 from geo import us_states, geo_distance, make_position, longitude, latitude
 from maps import draw_state, draw_name, draw_dot, wait
+from math import sqrt, isclose
 from string import ascii_letters
-from ucb import main, trace, interact, log_current_line
+from ucb import main
 
 
 ###################################
@@ -13,6 +14,7 @@ from ucb import main, trace, interact, log_current_line
 ###################################
 
 # The tweet abstract data type, implemented as a dictionary.
+
 
 def make_tweet(text, time, lat, lon):
     """Return a tweet, represented as a Python dictionary.
@@ -33,21 +35,26 @@ def make_tweet(text, time, lat, lon):
     >>> tweet_string(t)
     '"just ate lunch" @ (38, 74)'
     """
-    return {'text': text, 'time': time, 'latitude': lat, 'longitude': lon}
+    return {"text": text, "time": time, "latitude": lat, "longitude": lon}
+
 
 def tweet_text(tweet):
     """Return a string, the words in the text of a tweet."""
-    "*** YOUR CODE HERE ***"
+    return tweet["text"]
+
 
 def tweet_time(tweet):
     """Return the datetime representing when a tweet was posted."""
-    "*** YOUR CODE HERE ***"
+    return tweet["time"]
+
 
 def tweet_location(tweet):
     """Return a position representing a tweet's location."""
-    "*** YOUR CODE HERE ***"
+    return make_position(tweet["latitude"], tweet["longitude"])
+
 
 # The tweet abstract data type, implemented as a function.
+
 
 def make_tweet_fn(text, time, lat, lon):
     """An alternate implementation of make_tweet: a tweet is a function.
@@ -60,32 +67,52 @@ def make_tweet_fn(text, time, lat, lon):
     >>> latitude(tweet_location_fn(t))
     38
     """
-    "*** YOUR CODE HERE ***"
-    # Please don't call make_tweet in your solution
+
+    def func(param):
+        match param:
+            case "text":
+                return text
+            case "time":
+                return time
+            case "lat":
+                return lat
+            case "lon":
+                return lon
+            case _:
+                return f"Parameter {param} not found."
+
+    return func
+
 
 def tweet_text_fn(tweet):
     """Return a string, the words in the text of a functional tweet."""
-    return tweet('text')
+    return tweet("text")
+
 
 def tweet_time_fn(tweet):
     """Return the datetime representing when a functional tweet was posted."""
-    return tweet('time')
+    return tweet("time")
+
 
 def tweet_location_fn(tweet):
     """Return a position representing a functional tweet's location."""
-    return make_position(tweet('lat'), tweet('lon'))
+    return make_position(tweet("lat"), tweet("lon"))
+
 
 ### === +++ ABSTRACTION BARRIER +++ === ###
+
 
 def tweet_words(tweet):
     """Return the words in a tweet."""
     return extract_words(tweet_text(tweet))
+
 
 def tweet_string(tweet):
     """Return a string representing a functional tweet."""
     location = tweet_location(tweet)
     point = (latitude(location), longitude(location))
     return '"{0}" @ {1}'.format(tweet_text(tweet), point)
+
 
 def extract_words(text):
     """Return the words in a tweet, not including punctuation.
@@ -101,8 +128,10 @@ def extract_words(text):
     >>> extract_words('@(cat$.on^#$my&@keyboard***@#*')
     ['cat', 'on', 'my', 'keyboard']
     """
-    "*** YOUR CODE HERE ***"
-    return text.split()  # Replace this line
+    return "".join(
+        letter if letter in ascii_letters else " " for letter in text
+    ).split()
+
 
 def make_sentiment(value):
     """Return a sentiment, which represents a value that may not exist.
@@ -121,17 +150,23 @@ def make_sentiment(value):
     >>> sentiment_value(neutral)
     0
     """
-    assert value is None or (value >= -1 and value <= 1), 'Illegal value'
-    "*** YOUR CODE HERE ***"
+    assert value is None or (value >= -1 and value <= 1), "Illegal value"
+    if value is None:
+        return (False, None)
+    else:
+        return (True, value)
+
 
 def has_sentiment(s):
     """Return whether sentiment s has a value."""
-    "*** YOUR CODE HERE ***"
+    return s[0]
+
 
 def sentiment_value(s):
     """Return the value of a sentiment s."""
-    assert has_sentiment(s), 'No sentiment value'
-    "*** YOUR CODE HERE ***"
+    assert has_sentiment(s), "No sentiment value"
+    return s[1]
+
 
 def get_word_sentiment(word):
     """Return a sentiment representing the degree of positive or negative
@@ -149,8 +184,9 @@ def get_word_sentiment(word):
     # Learn more: http://docs.python.org/3/library/stdtypes.html#dict.get
     return make_sentiment(word_sentiments.get(word))
 
+
 def analyze_tweet_sentiment(tweet):
-    """ Return a sentiment representing the degree of positive or negative
+    """Return a sentiment representing the degree of positive or negative
     sentiment in the given tweet, averaging over all the words in the tweet
     that have a sentiment value.
 
@@ -167,15 +203,20 @@ def analyze_tweet_sentiment(tweet):
     >>> has_sentiment(analyze_tweet_sentiment(no_sentiment))
     False
     """
-    # You may change any of the lines below.
-    average = make_sentiment(None)
-    "*** YOUR CODE HERE ***"
-    return average
+    v = [
+        s
+        for w in extract_words(tweet_text(tweet))
+        if has_sentiment(s := get_word_sentiment(w))
+    ]
+    if not v:
+        return make_sentiment(None)
+    return make_sentiment(sum(sentiment_value(s) for s in v) / len(v))
 
 
 #################################
 # Phase 2: The Geometry of Maps #
 #################################
+
 
 def find_centroid(polygon):
     """Find the centroid of a polygon.
@@ -199,7 +240,26 @@ def find_centroid(polygon):
     >>> tuple(map(float, find_centroid([p1, p2, p1])))  # A zero-area polygon
     (1.0, 2.0, 0.0)
     """
-    "*** YOUR CODE HERE ***"
+    if not polygon:  # empty list of positions
+        return 0, 0, 0
+
+    cx, cy, area = 0, 0, 0
+    for i in range(len(polygon) - 1):
+        mul = (latitude(polygon[i]) * longitude(polygon[i + 1])
+               - latitude(polygon[i + 1]) * longitude(polygon[i]))
+        cx += (latitude(polygon[i]) + latitude(polygon[i + 1])) * mul
+        cy += (longitude(polygon[i]) + longitude(polygon[i + 1])) * mul
+        area += mul
+
+    if isclose(area, 0):
+        return latitude(polygon[0]), longitude(polygon[0]), 0
+
+    area /= 2
+    cx /= 6 * area
+    cy /= 6 * area
+
+    return cx, cy, abs(area)
+
 
 def find_state_center(polygons):
     """Compute the geographic center of a state, averaged over its polygons.
@@ -222,12 +282,47 @@ def find_state_center(polygons):
     >>> round(longitude(hi), 5)
     -156.21763
     """
-    "*** YOUR CODE HERE ***"
+    cx = 0
+    cy = 0
+    total_area = 0
+
+    for p in polygons:
+        centroid = find_centroid(p)
+        area = centroid[2]
+
+        total_area += area
+        cx += centroid[0] * area
+        cy += centroid[1] * area
+
+    cx /= total_area
+    cy /= total_area
+
+    return make_position(cx, cy)
 
 
 ###################################
 # Phase 3: The Mood of the Nation #
 ###################################
+
+
+def get_all_state_centers():
+    return {state: find_state_center(polygons) for state, polygons in us_states.items()}
+
+
+def euclidean_distance(pos_1, pos_2):
+    return sqrt(
+        (latitude(pos_1) - latitude(pos_2)) ** 2
+        + (longitude(pos_1) - longitude(pos_2)) ** 2
+    )
+
+
+def find_closest(ref, candidates):
+    distances = [
+        (name, euclidean_distance(ref, pos)) for name, pos in candidates.items()
+    ]
+    distances.sort(key=lambda c: c[1])
+    return distances[0][0]
+
 
 def group_tweets_by_state(tweets):
     """Return a dictionary that aggregates tweets by their nearest state center.
@@ -248,9 +343,16 @@ def group_tweets_by_state(tweets):
     >>> tweet_string(california_tweets[0])
     '"welcome to san francisco" @ (38, -122)'
     """
+    states = get_all_state_centers()
     tweets_by_state = {}
-    "*** YOUR CODE HERE ***"
+    for t in tweets:
+        closest = find_closest(tweet_location(t), states)
+        if closest in tweets_by_state:
+            tweets_by_state[closest].append(t)
+        else:
+            tweets_by_state[closest] = [t]
     return tweets_by_state
+
 
 def average_sentiments(tweets_by_state):
     """Calculate the average sentiment of the states by averaging over all
@@ -265,7 +367,15 @@ def average_sentiments(tweets_by_state):
     tweets_by_state -- A dictionary from state names to lists of tweets
     """
     averaged_state_sentiments = {}
-    "*** YOUR CODE HERE ***"
+    for state, tweets in tweets_by_state.items():
+        sentiments = [
+            s for t in tweets if has_sentiment(s := analyze_tweet_sentiment(t))
+        ]
+        if not sentiments:
+            continue
+        averaged_state_sentiments[state] = (
+            sum(sentiment_value(s) for s in sentiments) / len(sentiments)
+        )
     return averaged_state_sentiments
 
 
@@ -273,25 +383,28 @@ def average_sentiments(tweets_by_state):
 # Command Line Interface #
 ##########################
 
-def print_sentiment(text='Are you virtuous or verminous?'):
+
+def print_sentiment(text="Are you virtuous or verminous?"):
     """Print the words in text, annotated by their sentiment scores."""
     words = extract_words(text.lower())
-    layout = '{0:>' + str(len(max(words, key=len))) + '}: {1:+}'
+    layout = "{0:>" + str(len(max(words, key=len))) + "}: {1:+}"
     for word in words:
         s = get_word_sentiment(word)
         if has_sentiment(s):
             print(layout.format(word, sentiment_value(s)))
 
-def draw_centered_map(center_state='TX', n=10):
+
+def draw_centered_map(center_state="TX", n=10):
     """Draw the n states closest to center_state."""
     us_centers = {n: find_state_center(s) for n, s in us_states.items()}
     center = us_centers[center_state.upper()]
     dist_from_center = lambda name: geo_distance(center, us_centers[name])
-    for name in sorted(us_states.keys(), key=dist_from_center)[:int(n)]:
+    for name in sorted(us_states.keys(), key=dist_from_center)[: int(n)]:
         draw_state(us_states[name])
         draw_name(name, us_centers[name])
     draw_dot(center, 1, 10)  # Mark the center state with a red dot
     wait()
+
 
 def draw_state_sentiments(state_sentiments):
     """Draw all U.S. states in colors corresponding to their sentiment value.
@@ -308,7 +421,8 @@ def draw_state_sentiments(state_sentiments):
         if center is not None:
             draw_name(name, center)
 
-def draw_map_for_query(term='my job'):
+
+def draw_map_for_query(term="my job"):
     """Draw the sentiment map corresponding to the tweets that contain term.
 
     Some term suggestions:
@@ -324,8 +438,10 @@ def draw_map_for_query(term='my job'):
             draw_dot(tweet_location(tweet), sentiment_value(s))
     wait()
 
-def swap_tweet_representation(other=[make_tweet_fn, tweet_text_fn,
-                                     tweet_time_fn, tweet_location_fn]):
+
+def swap_tweet_representation(
+    other=[make_tweet_fn, tweet_text_fn, tweet_time_fn, tweet_location_fn],
+):
     """Swap to another representation of tweets. Call again to swap back."""
     global make_tweet, tweet_text, tweet_time, tweet_location
     swap_to = tuple(other)
@@ -337,18 +453,20 @@ def swap_tweet_representation(other=[make_tweet_fn, tweet_text_fn,
 def run(*args):
     """Read command-line arguments and calls corresponding functions."""
     import argparse
+
     parser = argparse.ArgumentParser(description="Run Trends")
-    parser.add_argument('--print_sentiment', '-p', action='store_true')
-    parser.add_argument('--draw_centered_map', '-d', action='store_true')
-    parser.add_argument('--draw_map_for_query', '-m', action='store_true')
-    parser.add_argument('--use_functional_tweets', '-f', action='store_true')
-    parser.add_argument('text', metavar='T', type=str, nargs='*',
-                        help='Text to process')
+    parser.add_argument("--print_sentiment", "-p", action="store_true")
+    parser.add_argument("--draw_centered_map", "-d", action="store_true")
+    parser.add_argument("--draw_map_for_query", "-m", action="store_true")
+    parser.add_argument("--use_functional_tweets", "-f", action="store_true")
+    parser.add_argument(
+        "text", metavar="T", type=str, nargs="*", help="Text to process"
+    )
     args = parser.parse_args()
     if args.use_functional_tweets:
         swap_tweet_representation()
         print("Now using a functional representation of tweets!")
         args.use_functional_tweets = False
     for name, execute in args.__dict__.items():
-        if name != 'text' and execute:
-            globals()[name](' '.join(args.text))
+        if name != "text" and execute:
+            globals()[name](" ".join(args.text))
