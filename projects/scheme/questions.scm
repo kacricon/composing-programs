@@ -68,8 +68,19 @@
 ;; A list of all ways to partition TOTAL, where  each partition must
 ;; be at most MAX-VALUE and there are at most MAX-PIECES partitions.
 (define (list-partitions total max-pieces max-value)
-  ; *** YOUR CODE HERE ***
-  nil)
+  (define (insert-into-all-lists x lists)
+    (if (null? lists)
+        '()
+        (cons (cons x (car lists))
+              (insert-into-all-lists x (cdr lists)))))
+
+  (define (partitions-helper total max-pieces max-value)
+    (cond ((= total 0) '(()))
+          ((or (< total 1) (< max-pieces 1) (< max-value 1)) '())
+          (else (append (insert-into-all-lists max-value (partitions-helper (- total max-value) (- max-pieces 1) max-value))
+                        (partitions-helper total max-pieces (- max-value 1))))))
+
+  (partitions-helper total max-pieces max-value))
 
 ; Problem 19 tests rely on correct Problem 18.
 (sort-lists (list-partitions 5 2 4))
@@ -114,16 +125,17 @@
 ;; Takes a TREE of numbers and outputs a list of sums from following each
 ;; possible path from root to leaf.
 (define (tree-sums tree)
-  ; *** YOUR CODE HERE ***
-  nil)
+  (define (tree-sums-helper tree current-sum)
+    (let ((entry (entry tree))
+          (children (children tree)))
+      (if (null? children)
+          (list (+ current-sum entry))
+          (apply append
+                 (map (lambda (child)
+                        (tree-sums-helper child (+ current-sum entry)))
+                      children)))))
+  (tree-sums-helper tree 0))
 
 (tree-sums tree)
 ; expect (20 19 13 16 11)
 
-
-; Problem 21 (optional)
-
-; Draw the hax image using turtle graphics.
-(define (hax d k)
-  ; *** YOUR CODE HERE ***
-  nil)
